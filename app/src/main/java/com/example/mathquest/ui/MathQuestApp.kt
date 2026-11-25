@@ -4,10 +4,8 @@ package com.example.mathquest.ui
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -16,6 +14,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.mathquest.ui.screens.HomeScreen
 import com.example.mathquest.ui.screens.QuizScreen
+import com.example.mathquest.ui.screens.ProgressScreen
+import com.example.mathquest.ui.screens.SettingsScreen
 import com.example.mathquest.viewmodel.LearningViewModel
 
 // Defines the four main navigation destinations.
@@ -30,12 +30,17 @@ enum class Screen(
     Settings("settings", "Settings", "⚙")
 }
 
-// Connects application screens using Navigation Compose.
+// Connects all application screens using Navigation Compose.
 @Composable
 fun MathQuestApp(
     viewModel: LearningViewModel
 ) {
+
     val navController = rememberNavController()
+
+    val snackbarHostState = remember {
+        SnackbarHostState()
+    }
 
     val backStackEntry by
     navController.currentBackStackEntryAsState()
@@ -55,7 +60,21 @@ fun MathQuestApp(
     val historyError by
     viewModel.historyError.collectAsStateWithLifecycle()
 
-    // Prevents duplicate destinations in the navigation back stack.
+    val operationMessage by
+    viewModel.operationMessage.collectAsStateWithLifecycle()
+
+    // Displays feedback after preference and database operations.
+    LaunchedEffect(operationMessage) {
+
+        operationMessage?.let { message ->
+
+            snackbarHostState.showSnackbar(message)
+
+            viewModel.dismissOperationMessage()
+        }
+    }
+
+    // Manages navigation while preventing duplicate destinations.
     fun navigateTo(screen: Screen) {
 
         if (
@@ -78,6 +97,11 @@ fun MathQuestApp(
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+
+        snackbarHost = {
+            SnackbarHost(snackbarHostState)
+        },
+
         bottomBar = {
 
             NavigationBar {
@@ -92,8 +116,10 @@ fun MathQuestApp(
                         icon = {
                             Text(
                                 text = screen.symbol,
-                                style = MaterialTheme.typography.titleLarge,
-                                modifier = Modifier.clearAndSetSemantics { }
+                                style =
+                                    MaterialTheme.typography.titleLarge,
+                                modifier =
+                                    Modifier.clearAndSetSemantics { }
                             )
                         },
                         label = {
@@ -149,39 +175,31 @@ fun MathQuestApp(
 
             composable(Screen.Progress.route) {
 
-                PlaceholderScreen(
-                    title = "Learning Progress"
+                ProgressScreen(
+                    history = history,
+                    historyError = historyError
                 )
             }
 
             composable(Screen.Settings.route) {
 
-                PlaceholderScreen(
-                    title = "Settings"
+                SettingsScreen(
+                    settings = settings,
+                    isBusy = state.isLoading ||
+                            state.isSaving ||
+                            state.isClearingHistory,
+                    onDifficultyChanged =
+                        viewModel::setDifficulty,
+                    onHighContrastChanged =
+                        viewModel::setHighContrast,
+                    onLargeTextChanged =
+                        viewModel::setLargeText,
+                    onResetSettings =
+                        viewModel::resetSettings,
+                    onClearHistory =
+                        viewModel::clearHistory
                 )
             }
         }
-    }
-}
-
-// Temporarily reserves destinations for the remaining screens.
-@Composable
-private fun PlaceholderScreen(title: String) {
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineMedium
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text("Coming soon")
     }
 }
